@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	cmap "github.com/orcaman/concurrent-map"
@@ -23,8 +24,9 @@ type Table struct {
 }
 
 type Database struct {
-	tables cmap.ConcurrentMap
-	folder string
+	tables   cmap.ConcurrentMap
+	folder   string
+	lastSave string
 }
 
 func NewDatabase() *Database {
@@ -134,8 +136,19 @@ func (database *Database) Load(folder string) error {
 		return fmt.Errorf("Database_Load: %s", err)
 	}
 
-	for name, records := range tables {
-		table := NewTable()
+	for name, table := range tables {
+
+		err := database.CreateTable(name)
+		if err != nil {
+			return fmt.Errorf("Database_Load: %s", err)
+		}
+
+		tbl, err := os.Open(fmt.Sprintf("%s%s.json",folder,name))
+		if err != nil {
+			return fmt.Errorf("Database_Load: %s", err)
+		}
+		var records []Record
+		if err := jsoniter.NewDecoder(tbl).Decode(&records); err != nil {
 
 		for _, record := range records {
 			table.records.Set(strconv.Itoa(record.ID), record)
@@ -172,6 +185,6 @@ func (database *Database) Save() error {
 			fmt.Printf("Database_Save: Error writing data for table %s: %v\n", key, err)
 		}
 	})
-
+	database.lastSave = time.Now().String()
 	return nil
 }
