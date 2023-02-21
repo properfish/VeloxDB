@@ -17,10 +17,93 @@ type Record struct {
 	Data interface{} `json:"data"`
 }
 
+type RecordInterface interface {
+	GetID() int
+	GetData() interface{}
+}
+
+func (record *Record) GetID() int {
+	return record.ID
+}
+
+func (record *Record) GetData() interface{} {
+	return record.Data
+}
+
 type Table struct {
 	records *cmap.ConcurrentMap
 	nextID  int
 	sync.RWMutex
+}
+
+type TableInterface interface {
+	CreateRecord(record interface{}) (RecordInterface, error)
+	ReadRecord(id int) (RecordInterface, error)
+	UpdateRecord(id int, record interface{}) error
+	DeleteRecord(id int) error
+}
+
+func (table *Table) CreateRecord(record interface{}) (RecordInterface, error) {
+	table.RWMutex.Lock()
+	defer table.RWMutex.Unlock()
+
+	id := table.nextID
+	table.nextID++
+
+	data := Record{
+		ID:   id,
+		Data: record,
+	}
+
+	table.records.Set(strconv.Itoa(id), data)
+	return &data, nil
+}
+
+func (table *Table) ReadRecord(id int) (interface{}, error) {
+	val, ok := table.records.Get(strconv.Itoa(id))
+	if !ok {
+		return nil, errors.New("ReadRecord: record not found")
+	}
+
+	record, ok := val.(Record)
+	if !ok {
+		return nil, errors.New("ReadRecord: invalid record type")
+	}
+
+	return record.Data, nil
+}
+
+func (t *Table) UpdateRecord(id int, record interface{}) error {
+	t.RWMutex.Lock()
+	defer t.RWMutex.Unlock()
+
+	val, ok := t.records.Get(strconv.Itoa(id))
+	if !ok {
+		return errors.New("UpdateRecord: record not found")
+	}
+
+	updateRecord, ok := val.(Record)
+	if !ok {
+		return errors.New("UpdateRecord: invalid record type")
+	}
+
+	updateRecord.Data = record
+	t.records.Set(strconv.Itoa(id), updateRecord)
+
+	return nil
+}
+
+func (t *Table) DeleteRecord(id int) error {
+	t.RWMutex.Lock()
+	defer t.RWMutex.Unlock()
+
+	_, ok := t.records.Get(strconv.Itoa(id))
+	if !ok {
+		return errors.New("DeleteRecord: record not found")
+	}
+
+	t.records.Remove(strconv.Itoa(id))
+	return nil
 }
 
 type Database struct {
@@ -58,69 +141,6 @@ func (database *Database) GetTable(name string) (interface{}, error) {
 	}
 
 	return &table, nil
-}
-
-func (table *Table) AddRecord(record interface{}) (int, error) {
-	table.RWMutex.Lock()
-	defer table.RWMutex.Unlock()
-
-	id := table.nextID
-	table.nextID++
-
-	data := Record{
-		ID:   id,
-		Data: record,
-	}
-
-	table.records.Set(strconv.Itoa(id), data)
-	return id, nil
-}
-
-func (table *Table) GetRecord(id int) (interface{}, error) {
-	val, ok := table.records.Get(strconv.Itoa(id))
-	if !ok {
-		return nil, errors.New("GetRecord: record not found")
-	}
-
-	record, ok := val.(Record)
-	if !ok {
-		return nil, errors.New("invalid record type")
-	}
-
-	return record.Data, nil
-}
-
-func (table *Table) UpdateRecord(id int, record interface{}) error {
-	table.RWMutex.Lock()
-	defer table.RWMutex.Unlock()
-
-	val, ok := table.records.Get(strconv.Itoa(id))
-	if !ok {
-		return errors.New("UpdateRecord: record not found")
-	}
-
-	updateRecord, ok := val.(Record)
-	if !ok {
-		return errors.New("invalid record type")
-	}
-
-	updateRecord.Data = record
-	table.records.Set(strconv.Itoa(id), updateRecord)
-
-	return nil
-}
-
-func (table *Table) DeleteRecord(id int) error {
-	table.RWMutex.Lock()
-	defer table.RWMutex.Unlock()
-
-	_, ok := table.records.Get(strconv.Itoa(id))
-	if !ok {
-		return errors.New("DeleteRecord: record not found")
-	}
-
-	table.records.Remove(strconv.Itoa(id))
-	return nil
 }
 
 func (database *Database) Load(folder string) error {
