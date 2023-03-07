@@ -56,6 +56,7 @@ func (table *Table) CreateRecord(record interface{}) (RecordInterface, error) {
 	}
 
 	table.records.Set(strconv.Itoa(id), data)
+
 	return &data, nil
 }
 
@@ -88,6 +89,7 @@ func (t *Table) UpdateRecord(id int, record interface{}) error {
 	}
 
 	updateRecord.Data = record
+
 	t.records.Set(strconv.Itoa(id), updateRecord)
 
 	return nil
